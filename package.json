@@ -36,6 +36,7 @@
   },
   "dependencies": {
     "chalk": "^4.1.2",
+    "figlet": "^1.9.1",
     "keypress": "^0.2.1"
   }
 }

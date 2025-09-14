@@ -2,6 +2,7 @@
 
 const chalk = require('chalk');
 const keypress = require('keypress');
+const figlet = require('figlet');
 
 // Enable keypress events
 keypress(process.stdin);
@@ -42,18 +43,25 @@ for (let i = 0; i < args.length; i++) {
   }
   
   if (args[i] === '--help' || args[i] === '-h') {
-    console.log(chalk.blue('CLI Monkeytype - Typing Test'));
-    console.log(chalk.gray('============================\n'));
-    console.log(chalk.white('Usage: monkeytype [options]\n'));
-    console.log(chalk.white('Options:'));
-    console.log(chalk.white('  -w, --words <number>   Set the number of words for the test (default: 30)'));
-    console.log(chalk.white('  -h, --help             Display this help message\n'));
-    console.log(chalk.white('Controls:'));
-    console.log(chalk.white('  Type words as they appear highlighted in yellow'));
-    console.log(chalk.white('  Press SPACE to submit each word'));
-    console.log(chalk.white('  Press ESC to quit at any time\n'));
+    displayHelp();
     process.exit(0);
   }
+}
+
+// Display help message
+function displayHelp() {
+  console.log(chalk.cyan(figlet.textSync('CLI Monkeytype', { horizontalLayout: 'full' })));
+  console.log(chalk.gray('========================================================\n'));
+  console.log(chalk.white('A command-line typing test application inspired by Monkeytype\n'));
+  console.log(chalk.cyan('Usage:'));
+  console.log(chalk.white('  monkeytype [options]\n'));
+  console.log(chalk.cyan('Options:'));
+  console.log(chalk.white('  -w, --words <number>   Set the number of words for the test (default: 30)'));
+  console.log(chalk.white('  -h, --help             Display this help message\n'));
+  console.log(chalk.cyan('Controls:'));
+  console.log(chalk.white('  - Type the words as they appear.'));
+  console.log(chalk.white('  - Press `SPACE` to move to the next word.'));
+  console.log(chalk.white('  - Press `ESC` to exit the test at any time.'));
 }
 
 // Get a random word from the list
@@ -72,68 +80,58 @@ function generateWords(count) {
 
 // Display the current state of the test
 function displayTest(wordList) {
-  // Clear terminal (cross-platform)
+  // Clear terminal
   if (process.platform === 'win32') {
     process.stdout.write('\x1Bc');
   } else {
     process.stdout.write('\x1B[2J\x1B[3J\x1B[H');
   }
-  
-  console.log(chalk.blue('CLI Monkeytype - Typing Test'));
+
+  console.log(chalk.cyan(figlet.textSync('CLI Monkeytype', { horizontalLayout: 'full' })));
   console.log(chalk.gray(`Words: ${wordCount} | Press ESC to quit\n`));
-  
+
   // Display words with highlighting
-  for (let i = 0; i < wordList.length; i++) {
-    if (i < currentWordIndex) {
-      // Already typed words
-      process.stdout.write(chalk.green(wordList[i] + ' '));
-    } else if (i === currentWordIndex) {
-      // Current word
-      process.stdout.write(chalk.yellow.underline(wordList[i] + ' '));
-    } else {
-      // Upcoming words
-      process.stdout.write(chalk.white(wordList[i] + ' '));
-    }
-  }
-  
-  process.stdout.write('\n\n');
-  
+  const typedWords = wordList.slice(0, currentWordIndex).map(word => chalk.green(word)).join(' ');
+  const currentWord = chalk.yellow.underline(wordList[currentWordIndex]);
+  const upcomingWords = wordList.slice(currentWordIndex + 1).map(word => chalk.white(word)).join(' ');
+
+  console.log(`${typedWords} ${currentWord} ${upcomingWords}\n`);
+
   // Display user input with feedback
-  if (userInput.length > 0) {
-    const currentWord = wordList[currentWordIndex];
-    if (userInput === currentWord.substring(0, userInput.length)) {
-      process.stdout.write(chalk.green(userInput));
+  const currentWordToMatch = wordList[currentWordIndex];
+  let feedback = '';
+  for (let i = 0; i < userInput.length; i++) {
+    if (userInput[i] === currentWordToMatch[i]) {
+      feedback += chalk.green(userInput[i]);
     } else {
-      process.stdout.write(chalk.red(userInput));
-      mistakes++;
+      feedback += chalk.red(userInput[i]);
     }
   }
-  
-  process.stdout.write('\n');
+  console.log(`> ${feedback}`);
 }
 
 // Calculate and display results
-function showResults(wordList, endTime) {
+function showResults(endTime) {
   const timeTaken = (endTime - startTime) / 1000; // in seconds
   const wordsPerMinute = Math.round((totalTyped / 5) / (timeTaken / 60));
   const accuracy = Math.round(((totalTyped - mistakes) / totalTyped) * 100);
-  
-  // Clear terminal (cross-platform)
+
+  // Clear terminal
   if (process.platform === 'win32') {
     process.stdout.write('\x1Bc');
   } else {
     process.stdout.write('\x1B[2J\x1B[3J\x1B[H');
   }
   
-  console.log(chalk.blue('Test Results:'));
-  console.log(chalk.gray('============='));
-  console.log(chalk.white(`Time: ${timeTaken.toFixed(2)} seconds`));
-  console.log(chalk.white(`Words Per Minute (WPM): ${wordsPerMinute}`));
-  console.log(chalk.white(`Accuracy: ${accuracy}%`));
-  console.log(chalk.white(`Characters Typed: ${totalTyped}`));
-  console.log(chalk.white(`Mistakes: ${mistakes}`));
-  console.log('\n' + chalk.green('Press any key to exit...'));
-  
+  console.log(chalk.cyan(figlet.textSync('Results', { horizontalLayout: 'full' })));
+  console.log(chalk.gray('=================================\n'));
+  console.log(chalk.cyan(`Time:       ${timeTaken.toFixed(2)}s`));
+  console.log(chalk.magenta(`WPM:        ${wordsPerMinute}`));
+  console.log(chalk.green(`Accuracy:   ${accuracy}%`));
+  console.log(chalk.yellow(`Characters: ${totalTyped}`));
+  console.log(chalk.red(`Mistakes:   ${mistakes}\n`));
+  console.log(chalk.gray('Press any key to exit...'));
+
   // Wait for a keypress to exit
   process.stdin.once('keypress', () => {
     process.exit(0);
@@ -143,10 +141,10 @@ function showResults(wordList, endTime) {
 // Main function to run the typing test
 function runTypingTest() {
   const wordList = generateWords(wordCount);
-  
-  console.log(chalk.blue('CLI Monkeytype - Typing Test'));
-  console.log(chalk.gray(`Words: ${wordCount} | Press any key to start...`));
-  
+
+  console.log(chalk.cyan(figlet.textSync('CLI Monkeytype', { horizontalLayout: 'full' })));
+  console.log(chalk.gray('Press any key to start...'));
+
   process.stdin.on('keypress', (ch, key) => {
     // Handle initial start
     if (!startTime && key) {
@@ -154,57 +152,69 @@ function runTypingTest() {
       displayTest(wordList);
       return;
     }
-    
+
     // Handle ESC key to quit
     if (key && key.name === 'escape') {
       process.exit(0);
     }
-    
+
     // Handle backspace
     if (key && key.name === 'backspace') {
-      userInput = userInput.slice(0, -1);
+      if (userInput.length > 0) {
+        userInput = userInput.slice(0, -1);
+      }
       displayTest(wordList);
       return;
     }
-    
+
     // Handle space (move to next word)
     if (ch === ' ') {
-      if (userInput === wordList[currentWordIndex]) {
+      if (userInput.length > 0) {
+        if (userInput !== wordList[currentWordIndex]) {
+          mistakes += Math.abs(wordList[currentWordIndex].length - userInput.length);
+          for(let i = 0; i < Math.min(userInput.length, wordList[currentWordIndex].length); i++) {
+            if(userInput[i] !== wordList[currentWordIndex][i]) {
+              mistakes++;
+            }
+          }
+        }
+        totalTyped += wordList[currentWordIndex].length + 1;
         currentWordIndex++;
         userInput = '';
-        totalTyped++;
-        
-        // Check if test is complete
+
         if (currentWordIndex >= wordList.length) {
           const endTime = new Date();
-          showResults(wordList, endTime);
+          showResults(endTime);
           return;
         }
-        
         displayTest(wordList);
       }
       return;
     }
-    
+
     // Handle regular character input
-    if (ch) {
+    if (ch && !ch.match(/[^\x20-\x7e]/)) {
       userInput += ch;
-      totalTyped++;
       displayTest(wordList);
     }
   });
-  
-  // Check if we're running in TTY mode and setRawMode is available before setting raw mode
+
   if (process.stdin.isTTY && typeof process.stdin.setRawMode === 'function') {
     process.stdin.setRawMode(true);
     process.stdin.resume();
   } else {
-    // Try to run anyway, but warn the user
-    console.log(chalk.yellow('Warning: Not running in a TTY terminal or setRawMode is not available. Some features may not work correctly.'));
-    console.log(chalk.yellow('For best experience, run this application in a terminal that supports TTY mode.'));
+    console.log(chalk.yellow('Warning: Not running in a TTY terminal. Some features might not work correctly.'));
     process.exit(1);
   }
 }
 
-// Run the typing test
-runTypingTest();
+// Display help if no arguments are provided
+if (args.length === 0) {
+  displayHelp();
+  console.log(chalk.cyan('\nStarting test with default settings...'));
+  setTimeout(() => {
+    runTypingTest();
+  }, 2000)
+} else {
+  runTypingTest();
+}
