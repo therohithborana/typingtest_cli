@@ -30,8 +30,8 @@ or
 node ./bin/monkeytype.js
 ```
 
-### Future: npm Registry (When published)
-Eventually, this package will be published to npm, allowing installation with:
+### Published 
+This package is published to npm, therefore simply run
 
 ```bash
 npm install -g cli-monkeytype
