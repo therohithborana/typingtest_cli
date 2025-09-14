@@ -7,7 +7,6 @@ const figlet = require('figlet');
 // Enable keypress events
 keypress(process.stdin);
 
-// Sample words for the typing test
 const words = [
   'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'I',
   'it', 'for', 'not', 'on', 'with', 'he', 'as', 'you', 'do', 'at',
@@ -23,198 +22,279 @@ const words = [
   'would', 'should', 'can', 'could', 'may', 'might', 'must', 'shall', 'ought'
 ];
 
+let state = 'mainMenu'; // mainMenu, options, themes, typingTest, results
+let wordList = [];
 let currentWordIndex = 0;
 let userInput = '';
 let startTime = null;
 let mistakes = 0;
 let totalTyped = 0;
+let wordCount = 30;
+let lastPressedKey = '';
+let creditVisible = true;
+let creditInterval;
 
-// Get command line arguments
-const args = process.argv.slice(2);
-let wordCount = 30; // Default word count
+const themes = {
+  default: { name: 'Default', main: chalk.cyan, secondary: chalk.gray, correct: chalk.green, incorrect: chalk.red, text: chalk.white },
+  funky: { name: 'Funky', main: chalk.magenta, secondary: chalk.yellow, correct: chalk.blue, incorrect: chalk.red, text: chalk.white },
+  ocean: { name: 'Ocean', main: chalk.blue, secondary: chalk.cyan, correct: chalk.green, incorrect: chalk.red, text: chalk.white },
+  forest: { name: 'Forest', main: chalk.green, secondary: chalk.yellow, correct: chalk.blue, incorrect: chalk.red, text: chalk.white },
+  neon: { name: 'Neon', main: chalk.rgb(255, 0, 255), secondary: chalk.rgb(0, 255, 255), correct: chalk.rgb(0, 255, 0), incorrect: chalk.rgb(255, 0, 0), text: chalk.white },
+};
+let currentTheme = themes.neon;
 
-// Parse command line arguments
-for (let i = 0; i < args.length; i++) {
-  if (args[i] === '--words' || args[i] === '-w') {
-    const count = parseInt(args[i + 1]);
-    if (!isNaN(count) && count > 0) {
-      wordCount = count;
-    }
-  }
+const menuOptions = ['Start Test', 'Options', 'Themes', 'Exit'];
+let selectedMenuOption = 0;
+const optionsMenu = ['Word Count', 'Back'];
+let selectedOption = 0;
+let newWordCount = '';
+
+const keyboardLayout = [
+  ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
+  ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
+  ['z', 'x', 'c', 'v', 'b', 'n', 'm']
+];
+
+function displayMainMenu() {
+  state = 'mainMenu';
+  clearScreen();
+  console.log(currentTheme.main(figlet.textSync('CLI Monkeytype', { font: 'Standard' })));
+  console.log(currentTheme.secondary('========================================================\n'));
+  menuOptions.forEach((option, index) => {
+    console.log(index === selectedMenuOption ? currentTheme.main.inverse(`> ${option}`) : `  ${option}`);
+  });
+  console.log(currentTheme.secondary('\nUse arrow keys to navigate and ENTER to select.'));
   
-  if (args[i] === '--help' || args[i] === '-h') {
-    displayHelp();
-    process.exit(0);
-  }
-}
-
-// Display help message
-function displayHelp() {
-  console.log(chalk.cyan(figlet.textSync('CLI Monkeytype', { horizontalLayout: 'full' })));
-  console.log(chalk.gray('========================================================\n'));
-  console.log(chalk.white('A command-line typing test application inspired by Monkeytype\n'));
-  console.log(chalk.cyan('Usage:'));
-  console.log(chalk.white('  monkeytype [options]\n'));
-  console.log(chalk.cyan('Options:'));
-  console.log(chalk.white('  -w, --words <number>   Set the number of words for the test (default: 30)'));
-  console.log(chalk.white('  -h, --help             Display this help message\n'));
-  console.log(chalk.cyan('Controls:'));
-  console.log(chalk.white('  - Type the words as they appear.'));
-  console.log(chalk.white('  - Press `SPACE` to move to the next word.'));
-  console.log(chalk.white('  - Press `ESC` to exit the test at any time.'));
-}
-
-// Get a random word from the list
-function getRandomWord() {
-  return words[Math.floor(Math.random() * words.length)];
-}
-
-// Generate a sequence of words for the test
-function generateWords(count) {
-  const wordList = [];
-  for (let i = 0; i < count; i++) {
-    wordList.push(getRandomWord());
-  }
-  return wordList;
-}
-
-// Display the current state of the test
-function displayTest(wordList) {
-  // Clear terminal
-  if (process.platform === 'win32') {
-    process.stdout.write('\x1Bc');
-  } else {
-    process.stdout.write('\x1B[2J\x1B[3J\x1B[H');
-  }
-
-  console.log(chalk.cyan(figlet.textSync('CLI Monkeytype', { horizontalLayout: 'full' })));
-  console.log(chalk.gray(`Words: ${wordCount} | Press ESC to quit\n`));
-
-  // Display words with highlighting
-  const typedWords = wordList.slice(0, currentWordIndex).map(word => chalk.green(word)).join(' ');
-  const currentWord = chalk.yellow.underline(wordList[currentWordIndex]);
-  const upcomingWords = wordList.slice(currentWordIndex + 1).map(word => chalk.white(word)).join(' ');
-
-  console.log(`${typedWords} ${currentWord} ${upcomingWords}\n`);
-
-  // Display user input with feedback
-  const currentWordToMatch = wordList[currentWordIndex];
-  let feedback = '';
-  for (let i = 0; i < userInput.length; i++) {
-    if (userInput[i] === currentWordToMatch[i]) {
-      feedback += chalk.green(userInput[i]);
-    } else {
-      feedback += chalk.red(userInput[i]);
-    }
-  }
-  console.log(`> ${feedback}`);
-}
-
-// Calculate and display results
-function showResults(endTime) {
-  const timeTaken = (endTime - startTime) / 1000; // in seconds
-  const wordsPerMinute = Math.round((totalTyped / 5) / (timeTaken / 60));
-  const accuracy = Math.round(((totalTyped - mistakes) / totalTyped) * 100);
-
-  // Clear terminal
-  if (process.platform === 'win32') {
-    process.stdout.write('\x1Bc');
-  } else {
-    process.stdout.write('\x1B[2J\x1B[3J\x1B[H');
-  }
+  if (creditInterval) clearInterval(creditInterval);
+  creditInterval = setInterval(() => {
+    creditVisible = !creditVisible;
+    displayMainMenu();
+  }, 500);
   
-  console.log(chalk.cyan(figlet.textSync('Results', { horizontalLayout: 'full' })));
-  console.log(chalk.gray('=================================\n'));
-  console.log(chalk.cyan(`Time:       ${timeTaken.toFixed(2)}s`));
-  console.log(chalk.magenta(`WPM:        ${wordsPerMinute}`));
-  console.log(chalk.green(`Accuracy:   ${accuracy}%`));
-  console.log(chalk.yellow(`Characters: ${totalTyped}`));
-  console.log(chalk.red(`Mistakes:   ${mistakes}\n`));
-  console.log(chalk.gray('Press any key to exit...'));
+  const creditText = creditVisible ? '(x.com/therohithborana)' : ' '.repeat(23);
+  console.log(currentTheme.secondary(`\n\n${creditText}`));
+}
 
-  // Wait for a keypress to exit
-  process.stdin.once('keypress', () => {
-    process.exit(0);
+function displayOptions() {
+  state = 'options';
+  clearInterval(creditInterval);
+  clearScreen();
+  console.log(currentTheme.main(figlet.textSync('Options', { font: 'Standard' })));
+  console.log(currentTheme.secondary('========================================================\n'));
+  optionsMenu.forEach((option, index) => {
+    console.log(index === selectedOption ? currentTheme.main.inverse(`> ${option}`) : `  ${option}`);
   });
 }
 
-// Main function to run the typing test
-function runTypingTest() {
-  const wordList = generateWords(wordCount);
+function displayThemes() {
+  state = 'themes';
+  clearInterval(creditInterval);
+  clearScreen();
+  console.log(currentTheme.main(figlet.textSync('Themes', { font: 'Standard' })));
+  console.log(currentTheme.secondary('========================================================\n'));
+  Object.values(themes).forEach((theme, index) => {
+    console.log(index === selectedOption ? currentTheme.main.inverse(`> ${theme.name}`) : `  ${theme.name}`);
+  });
+}
 
-  console.log(chalk.cyan(figlet.textSync('CLI Monkeytype', { horizontalLayout: 'full' })));
-  console.log(chalk.gray('Press any key to start...'));
-
-  process.stdin.on('keypress', (ch, key) => {
-    // Handle initial start
-    if (!startTime && key) {
-      startTime = new Date();
-      displayTest(wordList);
-      return;
-    }
-
-    // Handle ESC key to quit
-    if (key && key.name === 'escape') {
-      process.exit(0);
-    }
-
-    // Handle backspace
-    if (key && key.name === 'backspace') {
-      if (userInput.length > 0) {
-        userInput = userInput.slice(0, -1);
+function displayKeyboard() {
+  let keyboard = '\n';
+  const keyboardWidth = keyboardLayout[0].length * 4 + 2;
+  const padding = Math.floor((process.stdout.columns - keyboardWidth) / 2);
+  keyboard += ' '.repeat(padding) + currentTheme.main('┌' + '─'.repeat(keyboardWidth) + '┐\n');
+  keyboardLayout.forEach(row => {
+    keyboard += ' '.repeat(padding) + currentTheme.main('│ ');
+    row.forEach(key => {
+      if (key === lastPressedKey) {
+        keyboard += currentTheme.correct.inverse(` ${key} `);
+      } else {
+        keyboard += currentTheme.secondary(` ${key} `);
       }
-      displayTest(wordList);
-      return;
-    }
+    });
+    keyboard += currentTheme.main(' │\n');
+  });
+  keyboard += ' '.repeat(padding) + currentTheme.main('└' + '─'.repeat(keyboardWidth) + '┘');
+  console.log(keyboard);
+}
 
-    // Handle space (move to next word)
-    if (ch === ' ') {
-      if (userInput.length > 0) {
-        if (userInput !== wordList[currentWordIndex]) {
-          mistakes += Math.abs(wordList[currentWordIndex].length - userInput.length);
-          for(let i = 0; i < Math.min(userInput.length, wordList[currentWordIndex].length); i++) {
-            if(userInput[i] !== wordList[currentWordIndex][i]) {
-              mistakes++;
-            }
+function displayTest() {
+  state = 'typingTest';
+  clearInterval(creditInterval);
+  clearScreen();
+  console.log(currentTheme.main(figlet.textSync('CLI Monkeytype', { font: 'Standard' })));
+  console.log(currentTheme.secondary(`Words: ${wordCount} | Press ESC to quit\n`));
+
+  if (currentWordIndex >= wordList.length) {
+    showResults(new Date());
+    return;
+  }
+
+  const typedWords = wordList.slice(0, currentWordIndex).map(word => currentTheme.correct(word)).join(' ');
+  
+  const currentWord = wordList[currentWordIndex];
+  let displayedCurrentWord = '';
+  for (let i = 0; i < currentWord.length; i++) {
+    if (i < userInput.length) {
+      if (userInput[i] === currentWord[i]) {
+        displayedCurrentWord += currentTheme.correct(currentWord[i]);
+      } else {
+        displayedCurrentWord += currentTheme.incorrect(currentWord[i]);
+      }
+    } else {
+      displayedCurrentWord += chalk.yellow(currentWord[i]);
+    }
+  }
+
+  const upcomingWords = wordList.slice(currentWordIndex + 1).map(word => currentTheme.text(word)).join(' ');
+  console.log(`${typedWords} ${chalk.underline(displayedCurrentWord)} ${upcomingWords}\n`);
+
+  displayKeyboard();
+}
+
+function showResults(endTime) {
+  state = 'results';
+  clearInterval(creditInterval);
+  const timeTaken = (endTime - startTime) / 1000;
+  const wpm = timeTaken > 0 ? Math.round((totalTyped / 5) / (timeTaken / 60)) : 0;
+  const accuracy = totalTyped > 0 ? Math.round(((totalTyped - mistakes) / totalTyped) * 100) : 0;
+  clearScreen();
+  console.log(currentTheme.main(figlet.textSync('Results', { font: 'Standard' })));
+  console.log(currentTheme.secondary('=================================\n'));
+  console.log(currentTheme.main(`Time:       ${timeTaken.toFixed(2)}s`));
+  console.log(chalk.magenta(`WPM:        ${wpm}`));
+  console.log(currentTheme.correct(`Accuracy:   ${accuracy}%`));
+  console.log(chalk.yellow(`Characters: ${totalTyped}`));
+  console.log(currentTheme.incorrect(`Mistakes:   ${mistakes}\n`));
+  console.log(currentTheme.secondary('Press any key to return to the main menu...'));
+}
+
+function resetTestState() {
+  currentWordIndex = 0;
+  userInput = '';
+  startTime = null;
+  mistakes = 0;
+  totalTyped = 0;
+  lastPressedKey = '';
+}
+
+function startTypingTest() {
+  resetTestState();
+  wordList = Array.from({ length: wordCount }, () => words[Math.floor(Math.random() * words.length)]);
+  displayTest();
+}
+
+function clearScreen() {
+  process.stdout.write(process.platform === 'win32' ? '\x1Bc' : '\x1B[2J\x1B[3J\x1B[H');
+}
+
+if (process.stdin.isTTY) {
+  process.stdin.setRawMode(true);
+  process.stdin.resume();
+} else {
+  console.log(chalk.yellow('Warning: Not running in a TTY terminal.'));
+  process.exit(1);
+}
+
+displayMainMenu();
+
+process.stdin.on('keypress', (ch, key) => {
+  if (key && key.ctrl && key.name === 'c') process.exit(0);
+  lastPressedKey = ch;
+
+  switch (state) {
+    case 'mainMenu':
+      if (key && key.name === 'up') selectedMenuOption = (selectedMenuOption - 1 + menuOptions.length) % menuOptions.length;
+      if (key && key.name === 'down') selectedMenuOption = (selectedMenuOption + 1) % menuOptions.length;
+      if (key && key.name === 'return') {
+        if (selectedMenuOption === 0) startTypingTest();
+        if (selectedMenuOption === 1) displayOptions();
+        if (selectedMenuOption === 2) displayThemes();
+        if (selectedMenuOption === 3) process.exit(0);
+      } else {
+        displayMainMenu();
+      }
+      break;
+
+    case 'options':
+      if (key && key.name === 'escape') displayMainMenu();
+      if (key && key.name === 'return') {
+        if (selectedOption === 0) {
+          state = 'wordCount';
+          newWordCount = String(wordCount);
+          clearScreen();
+          console.log(currentTheme.main('Set Word Count'));
+          console.log(currentTheme.secondary(`Current: ${wordCount}`));
+          console.log(currentTheme.main(`> ${newWordCount}`));
+        } else {
+          displayMainMenu();
+        }
+      } else if (key && key.name === 'up') {
+        selectedOption = (selectedOption - 1 + optionsMenu.length) % optionsMenu.length;
+        displayOptions();
+      } else if (key && key.name === 'down') {
+        selectedOption = (selectedOption + 1) % optionsMenu.length;
+        displayOptions();
+      }
+      break;
+
+    case 'wordCount':
+      if (key && key.name === 'escape') displayOptions();
+      if (key && key.name === 'return') {
+        const count = parseInt(newWordCount);
+        if (!isNaN(count) && count > 0) wordCount = count;
+        displayOptions();
+      }
+      if (key && key.name === 'backspace') newWordCount = newWordCount.slice(0, -1);
+      if (ch && ch.match(/[0-9]/)) newWordCount += ch;
+      clearScreen();
+      console.log(currentTheme.main('Set Word Count'));
+      console.log(currentTheme.secondary(`Current: ${wordCount}`));
+      console.log(currentTheme.main(`> ${newWordCount}`));
+      break;
+
+    case 'themes':
+      if (key && key.name === 'escape') displayMainMenu();
+      if (key && key.name === 'return') {
+        currentTheme = Object.values(themes)[selectedOption];
+        displayMainMenu();
+      }
+      if (key && key.name === 'up') {
+        selectedOption = (selectedOption - 1 + Object.values(themes).length) % Object.values(themes).length;
+        displayThemes();
+      } else if (key && key.name === 'down') {
+        selectedOption = (selectedOption + 1) % Object.values(themes).length;
+        displayThemes();
+      }
+      break;
+
+    case 'typingTest':
+      if (key && key.name === 'escape') {
+        displayMainMenu();
+        return;
+      }
+      
+      if (key && key.name === 'backspace') {
+        userInput = userInput.slice(0, -1);
+      } else if (ch === ' ') {
+        if (userInput.length > 0) {
+          if (userInput !== wordList[currentWordIndex]) mistakes++;
+          totalTyped += wordList[currentWordIndex].length + 1;
+          currentWordIndex++;
+          userInput = '';
+          if (currentWordIndex >= wordList.length) {
+            showResults(new Date());
+            return;
           }
         }
-        totalTyped += wordList[currentWordIndex].length + 1;
-        currentWordIndex++;
-        userInput = '';
-
-        if (currentWordIndex >= wordList.length) {
-          const endTime = new Date();
-          showResults(endTime);
-          return;
-        }
-        displayTest(wordList);
+      } else if (ch && !ch.match(/[^ -~]/)) {
+        if (!startTime) startTime = new Date();
+        userInput += ch;
       }
-      return;
-    }
+      displayTest();
+      break;
 
-    // Handle regular character input
-    if (ch && !ch.match(/[^\x20-\x7e]/)) {
-      userInput += ch;
-      displayTest(wordList);
-    }
-  });
-
-  if (process.stdin.isTTY && typeof process.stdin.setRawMode === 'function') {
-    process.stdin.setRawMode(true);
-    process.stdin.resume();
-  } else {
-    console.log(chalk.yellow('Warning: Not running in a TTY terminal. Some features might not work correctly.'));
-    process.exit(1);
+    case 'results':
+      displayMainMenu();
+      break;
   }
-}
-
-// Display help if no arguments are provided
-if (args.length === 0) {
-  displayHelp();
-  console.log(chalk.cyan('\nStarting test with default settings...'));
-  setTimeout(() => {
-    runTypingTest();
-  }, 2000)
-} else {
-  runTypingTest();
-}
+});

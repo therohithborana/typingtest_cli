@@ -7,7 +7,7 @@
     "monkeytype": "bin/monkeytype.js"
   },
   "scripts": {
-    "start": "node ./bin/monkeytype.js",
+    "start": "FORCE_COLOR=3 node ./bin/monkeytype.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -28,7 +28,7 @@
     "url": "git+https://github.com/your-username/cli-monkeytype.git"
   },
   "bugs": {
-    "url": "https://github.com/your-username/cli-monkeytype/issues"
+    "url": "https://github.com/therohithborana/cli-monkeytype/issues"
   },
   "homepage": "https://github.com/your-username/cli-monkeytype#readme",
   "engines": {
@@ -36,7 +36,7 @@
   },
   "dependencies": {
     "chalk": "^4.1.2",
-    "figlet": "^1.9.1",
+    "figlet": "^1.7.0",
     "keypress": "^0.2.1"
   }
 }
